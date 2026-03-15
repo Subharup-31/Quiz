@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f23">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Quiz Time!</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; background: #0f0f23; color: #fff; min-height: 100vh; min-height: 100dvh; display: flex; justify-content: center; align-items: center; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .container { width: 100%; max-width: 480px; padding: 20px 16px; }
+
+  #join { text-align: center; }
+  #join h1 { font-size: 2.8rem; font-weight: 800; margin-bottom: 6px; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  #join p { color: #555; margin-bottom: 32px; font-size: 1.05rem; }
+  #join input { width: 100%; padding: 16px 20px; font-size: 16px; border: 2px solid #252540; border-radius: 14px; background: #1a1a2e; color: #fff; outline: none; margin-bottom: 16px; transition: border-color 0.2s; -webkit-appearance: none; }
+  #join input:focus { border-color: #667eea; }
+  #join input::placeholder { color: #444; }
+
+  .btn { padding: 16px 32px; font-size: 1.1rem; border: none; border-radius: 14px; cursor: pointer; font-weight: 700; transition: transform 0.1s; width: 100%; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+
+  #quiz { display: none; }
+  .quiz-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .progress { font-size: 0.9rem; color: #667eea; font-weight: 600; }
+  .score-pill { font-size: 0.9rem; color: #888; }
+  .score-pill span { color: #fff; font-weight: 700; }
+
+  .timer-bar { height: 5px; background: #1a1a2e; border-radius: 3px; margin-bottom: 28px; overflow: hidden; }
+  .timer-bar .fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 3px; transition: width 0.1s linear; }
+  .timer-bar .fill.warning { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+
+  .question-text { font-size: 1.35rem; font-weight: 700; margin-bottom: 28px; line-height: 1.5; }
+
+  .options { display: flex; flex-direction: column; gap: 12px; }
+  .option { padding: 16px 18px; border: 2px solid #252540; border-radius: 14px; background: #1a1a2e; font-size: 0.95rem; color: #fff; cursor: pointer; text-align: left; transition: all 0.15s; display: flex; align-items: center; gap: 12px; min-height: 54px; -webkit-user-select: none; user-select: none; }
+  .option:hover { border-color: #667eea; background: #1e1e3a; }
+  .option .letter { width: 32px; height: 32px; border-radius: 8px; background: #252540; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: #888; flex-shrink: 0; }
+  .option:hover .letter { background: #667eea33; color: #667eea; }
+  .option.selected { border-color: #667eea; background: #2a2a5a; pointer-events: none; }
+  .option.selected .letter { background: #667eea; color: #fff; }
+  .option.correct { border-color: #4ade80; background: #0f2a1a; pointer-events: none; }
+  .option.correct .letter { background: #4ade80; color: #000; }
+  .option.wrong { border-color: #f87171; background: #2a0f0f; pointer-events: none; }
+  .option.wrong .letter { background: #f87171; color: #fff; }
+  .option.disabled { pointer-events: none; opacity: 0.6; }
+
+  #finished { display: none; text-align: center; }
+  #finished h1 { font-size: 2rem; margin-bottom: 8px; }
+  .final-score { font-size: 5rem; font-weight: 900; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 24px 0; line-height: 1; }
+  .final-label { color: #555; font-size: 1.1rem; }
+
+  #waiting { display: none; text-align: center; }
+  #waiting h2 { color: #888; font-size: 1.3rem; margin-bottom: 8px; }
+  #waiting p { color: #444; }
+  .pulse { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #667eea; animation: pulse 1.5s ease infinite; margin-right: 8px; vertical-align: middle; }
+  @keyframes pulse { 0%,100% { opacity: 0.4; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+
+  @media (max-width: 380px) {
+    #join h1 { font-size: 2.2rem; }
+    .question-text { font-size: 1.15rem; margin-bottom: 20px; }
+    .option { padding: 14px 14px; font-size: 0.9rem; gap: 10px; }
+    .option .letter { width: 28px; height: 28px; font-size: 0.8rem; }
+    .final-score { font-size: 3.5rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="join">
+    <h1>Quiz Time</h1>
+    <p>Enter your name to join</p>
+    <input id="nameInput" type="text" placeholder="Your name..." maxlength="30" autofocus>
+    <button class="btn btn-primary" id="joinBtn">Join Quiz</button>
+  </div>
+
+  <div id="waiting">
+    <h2><span class="pulse"></span>Waiting for quiz to start...</h2>
+    <p>The host will start the quiz shortly</p>
+  </div>
+
+  <div id="quiz">
+    <div class="quiz-header">
+      <div class="progress" id="progress"></div>
+      <div class="score-pill">Score: <span id="scoreDisplay">0</span></div>
+    </div>
+    <div class="timer-bar"><div class="fill" id="timerFill"></div></div>
+    <div class="question-text" id="questionText"></div>
+    <div class="options" id="options"></div>
+  </div>
+
+  <div id="finished">
+    <h1>Well Done!</h1>
+    <div class="final-score" id="finalScore">0</div>
+    <div class="final-label">points scored</div>
+  </div>
+</div>
+
+<script>
+const socket = io();
+let timerInterval, startTime, timeLimit;
+let pendingName = null;
+let answered = false;
+let currentResult = null;
+const letters = ["A", "B", "C", "D"];
+
+function show(id) {
+  ["join", "waiting", "quiz", "finished"].forEach(s =>
+    document.getElementById(s).style.display = s === id ? "block" : "none"
+  );
+}
+
+document.getElementById("joinBtn").onclick = tryJoin;
+document.getElementById("nameInput").onkeydown = (e) => { if (e.key === "Enter") tryJoin(); };
+
+function tryJoin() {
+  const name = document.getElementById("nameInput").value.trim();
+  if (!name) return;
+  pendingName = name;
+  socket.emit("join", name);
+}
+
+// --- Socket events ---
+
+socket.on("question", (data) => {
+  show("quiz");
+  document.getElementById("progress").textContent = `${data.index + 1} / ${data.total}`;
+  document.getElementById("questionText").textContent = data.question;
+  const optionsEl = document.getElementById("options");
+  optionsEl.innerHTML = "";
+
+  answered = false;
+  currentResult = null;
+  timeLimit = data.time;
+  startTime = Date.now();
+  startTimer(timeLimit);
+
+  data.options.forEach((opt, i) => {
+    const btn = document.createElement("button");
+    btn.className = "option";
+    btn.innerHTML = `<span class="letter">${letters[i]}</span><span>${esc(opt)}</span>`;
+    btn.onclick = () => selectAnswer(data.index, i);
+    optionsEl.appendChild(btn);
+  });
+});
+
+function selectAnswer(index, selected) {
+  if (answered) return;
+  answered = true;
+  const timeTaken = (Date.now() - startTime) / 1000;
+  const btns = document.querySelectorAll(".option");
+  btns.forEach((b, i) => {
+    b.onclick = null;
+  });
+  if (selected >= 0) btns[selected].classList.add("selected");
+  socket.emit("answer", { index, selected, timeTaken });
+  // Timer keeps running — next question loads when timer ends
+}
+
+socket.on("result", (data) => {
+  currentResult = data;
+  document.getElementById("scoreDisplay").textContent = data.score;
+  const btns = document.querySelectorAll(".option");
+  // Show correct answer in green
+  if (data.correctAnswer >= 0 && data.correctAnswer < btns.length) {
+    btns[data.correctAnswer].classList.add("correct");
+  }
+  // Show wrong if player picked wrong
+  btns.forEach(b => {
+    if (b.classList.contains("selected") && !data.correct) {
+      b.classList.remove("selected");
+      b.classList.add("wrong");
+    } else if (b.classList.contains("selected") && data.correct) {
+      b.classList.remove("selected");
+      // already marked correct above
+    }
+  });
+  // Disable all
+  btns.forEach(b => b.classList.add("disabled"));
+});
+
+// Called when timer runs out — move to next question or finish
+function onTimerDone() {
+  if (!answered) {
+    // They didn't answer in time — auto submit
+    const idx = parseInt(document.getElementById("progress").textContent) - 1;
+    selectAnswer(idx, -1);
+    // Wait a moment for result to come back, then proceed
+    setTimeout(proceed, 1000);
+  } else {
+    proceed();
+  }
+}
+
+function proceed() {
+  if (currentResult && currentResult.finished) {
+    show("finished");
+    document.getElementById("finalScore").textContent = currentResult.score;
+  } else {
+    socket.emit("next");
+  }
+}
+
+socket.on("finished", (data) => {
+  clearInterval(timerInterval);
+  show("finished");
+  document.getElementById("finalScore").textContent = data.score;
+});
+
+socket.on("error-msg", (msg) => {
+  if (msg.includes("hasn't started")) {
+    show("waiting");
+  } else {
+    alert(msg);
+  }
+});
+
+socket.on("quiz-started", () => {
+  if (pendingName) socket.emit("join", pendingName);
+});
+
+socket.on("quiz-stopped", () => {
+  clearInterval(timerInterval);
+  show("finished");
+  document.querySelector("#finished h1").textContent = "Quiz Ended";
+});
+
+socket.on("quiz-reset", () => {
+  clearInterval(timerInterval);
+  pendingName = null;
+  document.querySelector("#finished h1").textContent = "Well Done!";
+  show("join");
+});
+
+function startTimer(seconds) {
+  clearInterval(timerInterval);
+  const fill = document.getElementById("timerFill");
+  fill.style.width = "100%";
+  fill.classList.remove("warning");
+  timerInterval = setInterval(() => {
+    const elapsed = (Date.now() - startTime) / 1000;
+    const pct = Math.max(0, 1 - elapsed / seconds) * 100;
+    fill.style.width = pct + "%";
+    if (pct < 30) fill.classList.add("warning");
+    if (pct <= 0) {
+      clearInterval(timerInterval);
+      onTimerDone();
+    }
+  }, 100);
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>

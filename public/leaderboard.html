@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0f0f23">
+<title>Live Leaderboard</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f0f23; color: #fff; min-height: 100vh; overflow: hidden; }
+
+  .header { text-align: center; padding: 40px 20px 20px; }
+  .header h1 { font-size: 3.2rem; font-weight: 900; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: -1px; }
+  .header .meta { color: #555; font-size: 1rem; margin-top: 8px; }
+  .header .meta span { color: #667eea; font-weight: 700; }
+
+  .board { max-width: 750px; margin: 20px auto; padding: 0 24px; }
+
+  .row { display: flex; align-items: center; gap: 18px; padding: 20px 24px; margin-bottom: 10px; border-radius: 16px; background: #1a1a2e; border: 1px solid #252540; animation: slideIn 0.35s ease; transition: all 0.3s ease; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+  .row.top1 { background: linear-gradient(135deg, #2a2000 0%, #1a1a2e 100%); border-color: #ffd700; box-shadow: 0 0 30px #ffd70015; }
+  .row.top2 { background: linear-gradient(135deg, #1a1a24 0%, #1a1a2e 100%); border-color: #94a3b8; }
+  .row.top3 { background: linear-gradient(135deg, #201a10 0%, #1a1a2e 100%); border-color: #cd7f32; }
+
+  .rank { font-size: 1.8rem; min-width: 48px; text-align: center; }
+  .top1 .rank { color: #ffd700; }
+  .top2 .rank { color: #94a3b8; }
+  .top3 .rank { color: #cd7f32; }
+  .rank-num { font-weight: 900; color: #333; font-size: 1.4rem; min-width: 48px; text-align: center; }
+
+  .info { flex: 1; min-width: 0; }
+  .name { font-size: 1.4rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status { font-size: 0.8rem; color: #555; margin-top: 2px; }
+  .status.done { color: #4ade80; }
+
+  .score { font-size: 2rem; font-weight: 900; background: linear-gradient(135deg, #667eea, #764ba2); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+  .empty { text-align: center; margin-top: 120px; }
+  .empty p { color: #333; font-size: 1.5rem; font-weight: 600; }
+  .empty .sub { color: #222; font-size: 1rem; margin-top: 8px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #667eea; animation: blink 1.5s ease infinite; margin-left: 6px; vertical-align: middle; }
+  @keyframes blink { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Leaderboard</h1>
+  <div class="meta"><span id="count">0</span> players</div>
+</div>
+<div class="board" id="board">
+  <div class="empty"><p>Waiting for players<span class="dot"></span></p><div class="sub">Scores will appear here in real time</div></div>
+</div>
+
+<script>
+const socket = io();
+const board = document.getElementById("board");
+const countEl = document.getElementById("count");
+const medals = ["\ud83e\udd47", "\ud83e\udd48", "\ud83e\udd49"];
+
+socket.on("leaderboard", (data) => {
+  countEl.textContent = data.length;
+  if (data.length === 0) {
+    board.innerHTML = '<div class="empty"><p>Waiting for players<span class="dot"></span></p><div class="sub">Scores will appear here in real time</div></div>';
+    return;
+  }
+  board.innerHTML = data.map((p, i) => {
+    const cls = i === 0 ? "top1" : i === 1 ? "top2" : i === 2 ? "top3" : "";
+    const rankHtml = i < 3 ? `<div class="rank">${medals[i]}</div>` : `<div class="rank-num">${i + 1}</div>`;
+    const statusCls = p.finished ? "status done" : "status";
+    const statusText = p.finished ? "Finished" : `Question ${p.progress} of ${p.total}`;
+    return `<div class="row ${cls}">${rankHtml}<div class="info"><div class="name">${esc(p.name)}</div><div class="${statusCls}">${statusText}</div></div><div class="score">${p.score}</div></div>`;
+  }).join("");
+});
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+</script>
+</body>
+</html>
