@@ -265,9 +265,9 @@ io.on("connection", (socket) => {
 
 // --- Start ---
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Quiz server running at http://localhost:${PORT}`);
-  console.log(`Admin panel:   http://localhost:${PORT}/admin.html`);
-  console.log(`Student quiz:  http://localhost:${PORT}`);
-  console.log(`Leaderboard:   http://localhost:${PORT}/leaderboard.html`);
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Quiz server running at http://0.0.0.0:${PORT}`);
+  console.log(`Admin panel:   http://0.0.0.0:${PORT}/admin.html`);
+  console.log(`Student quiz:  http://0.0.0.0:${PORT}`);
+  console.log(`Leaderboard:   http://0.0.0.0:${PORT}/leaderboard.html`);
 });
